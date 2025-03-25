@@ -67,6 +67,17 @@ DEFAULT_FROM_EMAIL = EMAIL_HOST_USER
 X_FRAME_OPTIONS = "SAMEORIGIN"  # Allow iframes from the same site
 
 
+
+CAPTCHA_IMAGE_SIZE = (300, 120)  # Increase image size for better clarity
+CAPTCHA_FONT_SIZE = 50  # Make letters bigger
+CAPTCHA_LETTER_ROTATION = (-15, 15)  # Slight rotation for difficulty
+CAPTCHA_NOISE_FUNCTIONS = ('captcha.helpers.noise_arcs', 'captcha.helpers.noise_dots')  # Add some noise
+CAPTCHA_FILTER_FUNCTIONS = ('captcha.helpers.post_smooth',)  # Apply smoothing for clarity
+CAPTCHA_CHALLENGE_FUNCT = 'captcha.helpers.random_char_challenge'  # Use random characters
+CAPTCHA_LENGTH = 6  # Make it longer for more difficulty
+CAPTCHA_OUTPUT_FORMAT = 'PNG'  # Keep high quality
+
+
 NETWORK_DRIVE = {
    "drive_letter": "Z:",
     "network_path": "\\RAIGYE\nastry",
