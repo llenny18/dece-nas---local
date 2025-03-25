@@ -140,6 +140,8 @@ def enter_otp(request):
     return render(request, "enter_otp.html")  # Render OTP input page
 
 
+
+
 def change_password(request):
     
     otp = request.session.get('otp', None)
@@ -334,7 +336,7 @@ def login_faculty(request):
                     request.session.pop('faculty_lockout_time', None)  # Remove lockout if present
                     log_action('admin', u_id, 'Logged In', request)
 
-                    messages.success(request, "Login successful!")
+                    
                     return redirect('f_dashboard')  
                 else:
                     messages.error(request, "Invalid password!")
@@ -638,6 +640,55 @@ def read_html_s(request):
 
 
 
+def enter_otp_online(request):
+    otp = request.session.get('otp', None)
+    if not otp:
+        return redirect(reverse('home'))  
+
+    """Allow the user to enter OTP for verification"""
+    if request.method == "POST":
+        entered_otp = request.POST.get("otp")
+        session_otp = request.session.get("otp")
+        otp_expiry = request.session.get("otp_expiry")
+        user_id = request.session.get("user_id")
+
+        if not session_otp or datetime.datetime.now() > datetime.datetime.fromisoformat(otp_expiry):
+            messages.error(request, "OTP has expired or is invalid.")
+            return redirect("send_otp")  # Redirect to the OTP send page
+
+        if str(entered_otp) == str(session_otp):
+            return redirect("change_password_true")
+        else:
+            messages.error(request, "Invalid OTP.")
+            return redirect("enter_otp")  # Redirect back to the OTP verification page
+
+    return render(request, "enter_otp.html")  # Render OTP input page
+
+def send_otp_pass_online(request):
+    """Send OTP to the user's email for password reset"""
+    if request.method == "POST":
+        email = request.POST.get("email")
+        try:
+            # Check if the email exists in the database
+            user = UserAccount.objects.get(username=email)
+            # Generate OTP and store in session
+            otp = generate_otp()
+            request.session["otp"] = otp
+            request.session["otp_expiry"] = (datetime.datetime.now() + datetime.timedelta(minutes=5)).isoformat()
+            request.session["user_id"] = user.u_id  # Store the user_id in the session
+
+            # Send the OTP to the user's email
+            send_email(otp, email)
+            messages.success(request, "An OTP has been sent to your email.")
+            return redirect("enter_otp_online")
+
+        except UserAccount.DoesNotExist:
+            messages.error(request, "No account found with this email address.")
+            return redirect("change_password_online")  # Redirect back to the OTP request page
+
+    return render(request, "change_password_online.html")  # Render the OTP request page 
+
+
 
 def fetch_data(query):
     with connection.cursor() as cursor:
@@ -749,7 +800,7 @@ def login_student(request):
                     request.session.pop('lockout_time', None)  # Remove lockout if present
                     log_action('student', student_id, 'Logged in', request)
 
-                    messages.success(request, "Login successful!")
+                    
                     return redirect('s_dashboard')
                 else:
                     messages.error(request, "Invalid password!")
@@ -1283,6 +1334,13 @@ def view_folder_s(request, folder_code):
     return render(request, "student/folder_contents.html", context)
 
 
+import os
+from django.shortcuts import render, redirect
+from django.http import JsonResponse
+from django.core.files.storage import FileSystemStorage
+from django.conf import settings
+from .models import FolderFile, StudentAccount, FilesShared
+
 def view_folder_f(request, folder_code):
     """ Faculty view of folder with file listing. """
     faculty_id = request.session.get("faculty_id")
@@ -1302,7 +1360,7 @@ def view_folder_f(request, folder_code):
         "videos": []
     }
 
-    folder_path = os.path.join(NETWORK_DRIVE_PATH, folder_code)
+    folder_path = os.path.join(settings.MEDIA_ROOT, folder_code)
     print(folder_path)
 
     if os.path.exists(folder_path):
@@ -1325,46 +1383,57 @@ def view_folder_f(request, folder_code):
             elif file.lower().endswith(TEXT_EXTENSION):
                 files["texts"].append(file_info)
 
-
     if request.method == "POST":
         try:
-            # Debugging: Print request data
-            print("POST Data:", request.POST)
-            print("FILES Data:", request.FILES)
+            if "delete_file" in request.POST:
+                file_name = request.POST.get("file_name")
+                print(f"{file_name} s")
+                file_record = FolderFile.objects.filter(folder_code=folder_code, file_name=file_name).first()
+                
+                if file_record:
+                    file_path = os.path.join(folder_path, file_name)
+                    
+                    # Remove file from filesystem
+                    if os.path.exists(file_path):
+                        os.remove(file_path)
+                        print(f"Deleted file: {file_path}")
+                    
+                    # Remove record from database
+                    file_record.delete()
+                    print(f"Deleted record from database: {file_name}")
+                    
+                    
+                    return redirect("view_folder_f", folder_code=folder_code)
+                else:
+                    return JsonResponse({"error": "File not found in database"}, status=404)
+            else:
 
-            if "upload_file" not in request.POST:
-                return JsonResponse({"error": "Missing 'upload_file' field"}, status=400)
+                if "file_link" not in request.FILES:
+                    return JsonResponse({"error": "No file uploaded"}, status=400)
 
-            if "file_link" not in request.FILES:
-                return JsonResponse({"error": "No file uploaded"}, status=400)
+                file = request.FILES["file_link"]
+                file_description = request.POST.get("file_description", "")
+                folder_code = request.POST.get("folder_code", folder_code)
 
-            file = request.FILES["file_link"]
-            file_description = request.POST.get("file_description", "")
-            folder_code = request.POST.get("folder_code", folder_code)  # Ensure folder_code is provided
+                os.makedirs(folder_path, exist_ok=True)  # Ensure the folder exists
 
-            # Define the folder path in the network drive
-            folder_path = os.path.join(settings.MEDIA_ROOT, folder_code)
-            os.makedirs(folder_path, exist_ok=True)  # Create the folder if it doesn't exist
+                # Save file in the specified folder
+                fs = FileSystemStorage(location=folder_path)
+                file_name = fs.save(file.name, file)
 
-            # Save file in the specified folder
-            fs = FileSystemStorage(location=folder_path)
-            file_name = fs.save(file.name, file)
-
-            # Store filename in MySQL
-            FolderFile.objects.create(
-                folder_code=folder_code,
-                file_name=file_name,
-                file_description=file_description,
-                file_link=os.path.join(folder_code, file_name).replace("\\", "/"),
-                uploader_id=faculty_id,
+                # Store filename in MySQL
+                FolderFile.objects.create(
+                    folder_code=folder_code,
+                    file_name=file_name,
+                    file_description=file_description,
+                    file_link=os.path.join(folder_code, file_name).replace("\\", "/"),
+                    uploader_id=faculty_id,
             )
 
             return redirect("view_folder_f", folder_code=folder_code)
-
-
+        
         except Exception as e:
-            return JsonResponse({"error": "File upload failed", "details": str(e)}, status=500)
-
+            return JsonResponse({"error": "File operation failed", "details": str(e)}, status=500)
 
     context = {
         "faculty_id": faculty_id,
@@ -1376,5 +1445,6 @@ def view_folder_f(request, folder_code):
         "files": files
     }
     return render(request, "faculty/folder_contents.html", context)
+
 
 
