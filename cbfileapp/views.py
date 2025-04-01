@@ -1247,7 +1247,7 @@ def view_folder_s(request, folder_code):
     if not student_id:
         return redirect(reverse("student_login"))
 
-    folder_files = FolderFile.objects.filter(folder_code=folder_code)
+    folder_files = FolderFile.objects.filter(folder_code=folder_code, uploader_id=student_id)
     students = StudentAccount.objects.all()
     shared_files = FilesShared.objects.filter(folder_code=folder_code)
 
@@ -1265,9 +1265,10 @@ def view_folder_s(request, folder_code):
         all_files = os.listdir(folder_path)
 
         for file in all_files:
+
             file_record = folder_files.filter(file_name=file).first()  # Get file info if exists in DB
             file_info = {
-                "file_name": file,
+                "file_name": file_record.file_guide  if file_record else "No name",
                 "file_description": file_record.file_description if file_record else "No description",
                 "file_link": file,
             }
@@ -1296,6 +1297,7 @@ def view_folder_s(request, folder_code):
 
             file = request.FILES["file_link"]
             file_description = request.POST.get("file_description", "")
+            file_guide = request.POST.get("file_name", "")
             folder_code = request.POST.get("folder_code", folder_code)  # Ensure folder_code is provided
 
             # Define the folder path in the network drive
@@ -1310,6 +1312,7 @@ def view_folder_s(request, folder_code):
             FolderFile.objects.create(
                 folder_code=folder_code,
                 file_name=file_name,
+                file_guide=file_guide,
                 file_description=file_description,
                 file_link=os.path.join(folder_code, file_name).replace("\\", "/"),
                 uploader_id=student_id,
@@ -1369,7 +1372,7 @@ def view_folder_f(request, folder_code):
         for file in all_files:
             file_record = folder_files.filter(file_name=file).first()  # Get file info if exists in DB
             file_info = {
-                "file_name": file,
+                "file_name": file_record.file_guide  if file_record else "No name",
                 "file_description": file_record.file_description if file_record else "No description",
                 "file_link": file,
             }
@@ -1413,6 +1416,7 @@ def view_folder_f(request, folder_code):
 
                 file = request.FILES["file_link"]
                 file_description = request.POST.get("file_description", "")
+                file_guide = request.POST.get("file_name", "")
                 folder_code = request.POST.get("folder_code", folder_code)
 
                 os.makedirs(folder_path, exist_ok=True)  # Ensure the folder exists
@@ -1425,6 +1429,7 @@ def view_folder_f(request, folder_code):
                 FolderFile.objects.create(
                     folder_code=folder_code,
                     file_name=file_name,
+                    file_guide=file_guide,
                     file_description=file_description,
                     file_link=os.path.join(folder_code, file_name).replace("\\", "/"),
                     uploader_id=faculty_id,
