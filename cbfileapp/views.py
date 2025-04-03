@@ -1342,7 +1342,7 @@ from django.shortcuts import render, redirect
 from django.http import JsonResponse
 from django.core.files.storage import FileSystemStorage
 from django.conf import settings
-from .models import FolderFile, StudentAccount, FilesShared, FileOfStudents
+from .models import FolderFile, StudentAccount, FilesShared, FileOfStudents, FacultyFiles
 
 
 def view_folder_f(request, folder_code):
@@ -1353,7 +1353,8 @@ def view_folder_f(request, folder_code):
     if not faculty_id:
         return redirect(reverse("faculty_login"))
 
-    folder_files = FolderFile.objects.filter(folder_code=folder_code)
+    folder_files1 = FileOfStudents.objects.filter(folder_code=folder_code)
+    folder_files2 = FacultyFiles.objects.filter(folder_code=folder_code)
     students = StudentAccount.objects.all()
     shared_files = FilesShared.objects.filter(folder_code=folder_code)
 
@@ -1371,9 +1372,10 @@ def view_folder_f(request, folder_code):
         all_files = os.listdir(folder_path)
 
         for file in all_files:
-            file_record = folder_files.filter(file_name=file).first()  # Get file info if exists in DB
+            file_record = folder_files1.filter(file_name=file).first()  # Get file info if exists in DB
             file_info = {
                 "file_id": file_record.file_id  if file_record else "No name",
+                "user_name": f"{file_record.first_name} {file_record.middle_name} {file_record.last_name}" if file_record else "No name",
                 "file_name": file_record.file_guide  if file_record else "No name",
                 "file_description": file_record.file_description if file_record else "No description",
                 "file_link": file,
@@ -1447,7 +1449,7 @@ def view_folder_f(request, folder_code):
     context = {
         "faculty_id": faculty_id,
         "full_name": full_name,
-        "folder_files": folder_files,
+        "folder_files": folder_files1,
         "folder_code": folder_code,
         "students": students,
         "shared_files": shared_files,
