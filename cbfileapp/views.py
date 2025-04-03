@@ -924,26 +924,32 @@ def faculty_folders(request):
 
     # Handle Folder Creation
     if request.method == "POST":
-        folder_name = request.POST.get('folder_name', '').strip()
-        description = request.POST.get('description', '').strip()
-        apicode = request.POST.get('apicode', '').strip()
+        if "create" in request.POST:
+            folder_name = request.POST.get('folder_name', '').strip()
+            description = request.POST.get('description', '').strip()
+            apicode = request.POST.get('apicode', '').strip()
 
-        if folder_name and description and apicode:
-            unique_code = get_random_string(10)  # Generate a unique code
+            if folder_name and description and apicode:
+                unique_code = get_random_string(10)  # Generate a unique code
 
-            FolderTns.objects.create(
-                folder_name=folder_name,
-                description=description,
-                unique_code=unique_code,
-                apicode=unique_code,
-                faculty_id=faculty_id
-            )
+                FolderTns.objects.create(
+                    folder_name=folder_name,
+                    description=description,
+                    unique_code=unique_code,
+                    apicode=unique_code,
+                    faculty_id=faculty_id
+                )
 
-            messages.success(request, "Folder created successfully!")
-            return redirect('faculty_folders')  # Redirect to refresh the page
+                messages.success(request, "Folder created successfully!")
+                return redirect('faculty_folders')  # Redirect to refresh the page
 
+            else:
+                messages.error(request, "All fields are required!")
         else:
-            messages.error(request, "All fields are required!")
+            if "folder_code_delete" in request.POST:
+                folder_code = request.POST.get("folder_code_delete")
+                folder_whole = FolderTns.objects.filter(unique_code=folder_code).first()
+                folder_whole.delete()
 
     # Fetch folders linked to students
     student_folders = StudentFolderView.objects.filter(faculty_id=faculty_id).values(
