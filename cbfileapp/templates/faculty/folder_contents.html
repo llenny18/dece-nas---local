@@ -62,8 +62,17 @@
 
             <div class="container-xxl flex-grow-1 container-p-y">
               <h4 class="fw-bold py-3 mb-4">Folder Contents</h4>
+              {% if messages %}
+              <div class="alert alert-danger">
+                  {% for message in messages %}
+                      <p>{{ message }}</p>
+                  {% endfor %}
+              </div>
+          {% endif %}
               <div class="row mb-5">
               <div class="col-md-6">
+             
+            
 <!-- Button trigger modal -->
 <button
   href="#basicModal"
@@ -138,7 +147,7 @@
                               <form method="post" onsubmit="return confirmDelete()">              
   {% csrf_token %}
 
-                                <input type="text" value="{{ pdf.file_name }}" name="file_name" style="display: none;">
+                                <input type="text" value="{{ pdf.file_id }}" name="file_name" style="display: none;">
                                 <button type="submit" class="btn btn-danger" name="delete_file">Delete</button>
                             </form>
                             
@@ -176,7 +185,7 @@
                               <form method="post" onsubmit="return confirmDelete()">              
   {% csrf_token %}
 
-                                <input type="text" value="{{ text.file_name }}" name="file_name" style="display: none;">
+                                <input type="text" value="{{ text.file_id }}" name="file_name" style="display: none;">
                                 <button type="submit" class="btn btn-danger" name="delete_file">Delete</button>
                             </form>
                             
@@ -213,7 +222,7 @@
                               <form method="post" onsubmit="return confirmDelete()">              
   {% csrf_token %}
 
-                                <input type="text" value="{{ pdf.file_name }}" name="file_name" style="display: none;">
+                                <input type="text" value="{{ pdf.file_id }}" name="file_name" style="display: none;">
                                 <button type="submit" class="btn btn-danger" name="delete_file">Delete</button>
                             </form>
                             
@@ -247,7 +256,7 @@
                               <form method="post" onsubmit="return confirmDelete()">              
   {% csrf_token %}
 
-                                <input type="text" value="{{ pdf.file_name }}" name="file_name" style="display: none;">
+                                <input type="text" value="{{ pdf.file_id }}" name="file_name" style="display: none;">
                                 <button type="submit" class="btn btn-danger" name="delete_file">Delete</button>
                             </form>
                             
