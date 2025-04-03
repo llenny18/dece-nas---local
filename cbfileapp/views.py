@@ -1364,6 +1364,9 @@ def view_folder_f(request, folder_code):
     students = StudentAccount.objects.all()
     shared_files = FilesShared.objects.filter(folder_code=folder_code)
 
+    # Combine both folder files into one queryset
+    all_folder_files = list(folder_files1) + list(folder_files2)
+
     files = {
         "pdfs": [],
         "images": [],
@@ -1378,15 +1381,18 @@ def view_folder_f(request, folder_code):
         all_files = os.listdir(folder_path)
 
         for file in all_files:
-            file_record = folder_files1.filter(file_name=file).first()  # Get file info if exists in DB
+            # Check if the file exists in either folder_files1 or folder_files2
+            file_record = next((f for f in all_folder_files if f.file_name == file), None)
+
             file_info = {
-                "file_id": file_record.file_id  if file_record else "No name",
+                "file_id": file_record.file_id if file_record else "No ID",
                 "user_name": f"{file_record.first_name} {file_record.middle_name} {file_record.last_name}" if file_record else "No name",
-                "file_name": file_record.file_guide  if file_record else "No name",
+                "file_name": file_record.file_guide if file_record else "No name",
                 "file_description": file_record.file_description if file_record else "No description",
                 "file_link": file,
             }
 
+            # Sort files into categories
             if file.lower().endswith(PDF_EXTENSION):
                 files["pdfs"].append(file_info)
             elif file.lower().endswith(IMAGE_EXTENSIONS):
@@ -1462,6 +1468,4 @@ def view_folder_f(request, folder_code):
         "files": files
     }
     return render(request, "faculty/folder_contents.html", context)
-
-
 
