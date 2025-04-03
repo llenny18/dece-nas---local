@@ -1342,7 +1342,7 @@ from django.shortcuts import render, redirect
 from django.http import JsonResponse
 from django.core.files.storage import FileSystemStorage
 from django.conf import settings
-from .models import FolderFile, StudentAccount, FilesShared
+from .models import FolderFile, StudentAccount, FilesShared, FileOfStudents
 
 
 def view_folder_f(request, folder_code):
@@ -1392,8 +1392,9 @@ def view_folder_f(request, folder_code):
         try:
             if "delete_file" in request.POST:
                 file_name = request.POST.get("file_name")
+                file_id = request.POST.get("file_id") 
                 print(f"{file_name} s")
-                file_record = FolderFile.objects.filter(folder_code=folder_code, file_id=file_name).first()
+                file_record = FolderFile.objects.filter(folder_code=folder_code, file_id=file_id).first()
                 
                 if file_record:
                     file_path = os.path.join(folder_path, file_name)

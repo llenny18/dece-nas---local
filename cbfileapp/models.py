@@ -110,6 +110,32 @@ class StudentAccount(models.Model):
         managed = False
         db_table = 'student_accounts'
 
+from django.db import models
+
+class FileOfStudents(models.Model):
+    EMAIL_VERIFIED_CHOICES = [
+        ('no', 'No'),
+        ('yes', 'Yes'),
+    ]
+
+    u_id = models.IntegerField(default=0)
+    username = models.CharField(max_length=50)
+    hashed_password = models.CharField(max_length=255)
+    student_id = models.CharField(max_length=10)
+    email_verified = models.CharField(max_length=3, choices=EMAIL_VERIFIED_CHOICES, default='no')
+    first_name = models.CharField(max_length=50, null=True, blank=True)
+    middle_name = models.CharField(max_length=50, null=True, blank=True)
+    last_name = models.CharField(max_length=50, null=True, blank=True)
+    file_id = models.IntegerField(default=0)
+    folder_code = models.CharField(max_length=255)
+    file_name = models.CharField(max_length=255)
+    file_guide = models.CharField(max_length=200)
+    file_description = models.TextField(null=True, blank=True)
+    file_link = models.CharField(max_length=255)
+    uploader_id = models.CharField(max_length=11)
+
+    def __str__(self):
+        return self.file_name
 
 
 class FolderFile(models.Model):
