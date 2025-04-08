@@ -1,0 +1,180 @@
+
+class FileOfStudents(models.Model):
+    EMAIL_VERIFIED_CHOICES = [
+        ('no', 'No'),
+        ('yes', 'Yes'),
+    ]
+
+    u_id = models.IntegerField(default=0)
+    username = models.CharField(max_length=50)
+    hashed_password = models.CharField(max_length=255)
+    student_id = models.CharField(max_length=10)
+    email_verified = models.CharField(max_length=3, choices=EMAIL_VERIFIED_CHOICES, default='no')
+    first_name = models.CharField(max_length=50, null=True, blank=True)
+    middle_name = models.CharField(max_length=50, null=True, blank=True)
+    last_name = models.CharField(max_length=50, null=True, blank=True)
+    file_id = models.IntegerField(default=0)
+    folder_code = models.CharField(max_length=255)
+    file_name = models.CharField(max_length=255)
+    file_guide = models.CharField(max_length=200)
+    file_description = models.TextField(null=True, blank=True)
+    file_link = models.CharField(max_length=255)
+    uploader_id = models.CharField(max_length=11)
+
+    class Meta:
+        db_table = 'file_of_students'  # The table name in MySQL
+        managed = False  # Set to False if you don't want Django to manage the database table
+
+    def __str__(self):
+        return self.file_name
+
+class FacultyFiles(models.Model):
+    u_id = models.IntegerField(default=0)
+    username = models.CharField(max_length=50)
+    hashed_password = models.CharField(max_length=255)
+    faculty_id = models.IntegerField(default=0)
+    gsuite = models.CharField(max_length=100)
+    first_name = models.CharField(max_length=50, null=True, blank=True)
+    middle_name = models.CharField(max_length=50, null=True, blank=True)
+    last_name = models.CharField(max_length=50, null=True, blank=True)
+    file_id = models.IntegerField(default=0)
+    folder_code = models.CharField(max_length=255)
+    file_name = models.CharField(max_length=255)
+    file_guide = models.CharField(max_length=200)
+    file_description = models.TextField(null=True, blank=True)
+    file_link = models.CharField(max_length=255)
+    uploader_id = models.CharField(max_length=20)
+
+    class Meta:
+        db_table = 'files_of_faculty'  # The table name in MySQL
+        managed = False  # Set to False if you don't want Django to manage the database table
+
+    def __str__(self):
+        return f"{self.file_name} ({self.username})"
+
+
+
+
+
+import os
+from django.shortcuts import render, redirect
+from django.http import JsonResponse
+from django.core.files.storage import FileSystemStorage
+from django.conf import settings
+from .models import FolderFile, StudentAccount, FilesShared, FileOfStudents, FacultyFiles
+
+
+def view_folder_f(request, folder_code):
+    """ Faculty view of folder with file listing. """
+    faculty_id = request.session.get("faculty_id")
+    full_name = request.session.get("a_fullname")
+
+    if not faculty_id:
+        return redirect(reverse("faculty_login"))
+
+    folder_files1 = FileOfStudents.objects.filter(folder_code=folder_code)
+    folder_files2 = FacultyFiles.objects.filter(folder_code=folder_code)
+    students = StudentAccount.objects.all()
+    shared_files = FilesShared.objects.filter(folder_code=folder_code)
+
+    files = {
+        "pdfs": [],
+        "images": [],
+        "texts": [],
+        "videos": []
+    }
+
+    folder_path = os.path.join(settings.MEDIA_ROOT, folder_code)
+    print(folder_path)
+
+    if os.path.exists(folder_path):
+        all_files = os.listdir(folder_path)
+
+        for file in all_files:
+            file_record = folder_files1.filter(file_name=file).first()  # Get file info if exists in DB
+            file_info = {
+                "file_id": file_record.file_id  if file_record else "No name",
+                "user_name": f"{file_record.first_name} {file_record.middle_name} {file_record.last_name}" if file_record else "No name",
+                "file_name": file_record.file_guide  if file_record else "No name",
+                "file_description": file_record.file_description if file_record else "No description",
+                "file_link": file,
+            }
+
+            if file.lower().endswith(PDF_EXTENSION):
+                files["pdfs"].append(file_info)
+            elif file.lower().endswith(IMAGE_EXTENSIONS):
+                files["images"].append(file_info)
+            elif file.lower().endswith(VIDEO_EXTENSIONS):
+                files["videos"].append(file_info)
+            elif file.lower().endswith(TEXT_EXTENSION):
+                files["texts"].append(file_info)
+
+    if request.method == "POST":
+        try:
+            if "delete_file" in request.POST:
+                file_name = request.POST.get("file_name")
+                file_id = request.POST.get("file_id") 
+                print(f"{file_name} s")
+                file_record = FolderFile.objects.filter(folder_code=folder_code, file_id=file_id).first()
+                
+                if file_record:
+                    file_path = os.path.join(folder_path, file_name)
+                    
+                    # Remove file from filesystem
+                    if os.path.exists(file_path):
+                        os.remove(file_path)
+                        print(f"Deleted file: {file_path}")
+                    
+                    # Remove record from database
+                    file_record.delete()
+                    messages.success(request, f"File Deleted successfully")
+                    
+                    
+                    return redirect("view_folder_f", folder_code=folder_code)
+                else:
+                    return JsonResponse({"error": "File not found in database"}, status=404)
+            else:
+
+                if "file_link" not in request.FILES:
+                    return JsonResponse({"error": "No file uploaded"}, status=400)
+
+                file = request.FILES["file_link"]
+                file_description = request.POST.get("file_description", "")
+                file_guide = request.POST.get("file_name", "")
+                folder_code = request.POST.get("folder_code", folder_code)
+
+                os.makedirs(folder_path, exist_ok=True)  # Ensure the folder exists
+
+                # Save file in the specified folder
+                fs = FileSystemStorage(location=folder_path)
+                file_name = fs.save(file.name, file)
+
+                # Store filename in MySQL
+                FolderFile.objects.create(
+                    folder_code=folder_code,
+                    file_name=file_name,
+                    file_guide=file_guide,
+                    file_description=file_description,
+                    file_link=os.path.join(folder_code, file_name).replace("\\", "/"),
+                    uploader_id=faculty_id,
+            )
+
+            messages.success(request, f"File Uploaded successfully")
+            return redirect("view_folder_f", folder_code=folder_code)
+        
+        except Exception as e:
+            return JsonResponse({"error": "File operation failed", "details": str(e)}, status=500)
+
+    context = {
+        "faculty_id": faculty_id,
+        "full_name": full_name,
+        "folder_files": folder_files1,
+        "folder_code": folder_code,
+        "students": students,
+        "shared_files": shared_files,
+        "files": files
+    }
+    return render(request, "faculty/folder_contents.html", context)
+
+
+

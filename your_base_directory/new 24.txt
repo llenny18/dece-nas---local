@@ -1,0 +1,4 @@
+    if request.method == "POST":
+        file_name = request.POST.get("file_name")
+		file_record = FolderFile.objects.filter(folder_code=folder_code, file_id=file_id).first()
+        file_record.delete()
