@@ -57,6 +57,7 @@
             <!-- Content -->
 
             <div class="container-xxl flex-grow-1 container-p-y">
+              <h6 class="alert alert-danger">{{ notification }}</h6>
               <h4 class="fw-bold py-3 mb-4"><span class="text-muted fw-light">Faculty / </span> File Folders</h4>
 
               <!-- Tabs -->
@@ -128,7 +129,7 @@
                           aria-controls="navs-justified-home"
                           aria-selected="true"
                         >
-                          <i class="tf-icons bx bx-file"></i>Folder Code: {{ folder.folder_name }}
+                          <i class="tf-icons bx bx-file"></i>Folder Name: {{ folder.folder_name }}
                         </button>
                       </li>
                       <li class="nav-item">
@@ -220,7 +221,7 @@
                           aria-controls="navs-justified-home"
                           aria-selected="true"
                         >
-                          <i class="tf-icons bx bx-file"></i>Folder Code: {{ folder.folder_name }}
+                          <i class="tf-icons bx bx-file"></i>Folder Name: {{ folder.folder_name }}
                         </button>
                       </li>
                       <li class="nav-item">

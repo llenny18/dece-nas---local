@@ -57,7 +57,9 @@
             <!-- Content -->
 
             <div class="container-xxl flex-grow-1 container-p-y">
-              <h4 class="fw-bold py-3 mb-4"><span class="text-muted fw-light">Student#a42434 / </span> File Folders {{ student_id }}</h4>
+              
+              <h6 class="alert alert-danger">{{ notification }}</h6>
+              <h4 class="fw-bold py-3 mb-4"><span class="text-muted fw-light">Student / </span> File Folders {{ student_id }}</h4>
 
 
               <div class="row">
@@ -80,8 +82,8 @@
                                     <div class="modal-body">
                                         <div class="row">
                                             <div class="col mb-3">
-                                                <label for="unique_code" class="form-label">Folder Code</label>
-                                                <input type="text" id="unique_code" name="unique_code" class="form-control" placeholder="Enter Folder Code" required>
+                                                <label for="unique_code" class="form-label">Folder Name</label>
+                                                <input type="text" id="unique_code" name="unique_code" class="form-control" placeholder="Enter Folder Name" required>
                                             </div>
                                         </div>
                                     </div>
@@ -113,7 +115,7 @@
                           aria-controls="navs-justified-home"
                           aria-selected="true"
                         >
-                          <i class="tf-icons bx bx-file"></i>Folder Code: {{ folder.folder_name }}
+                          <i class="tf-icons bx bx-file"></i>Folder Name: {{ folder.folder_name }}
                         </button>
                       </li>
                       <li class="nav-item">
