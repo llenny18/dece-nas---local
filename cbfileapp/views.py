@@ -761,6 +761,7 @@ def student_logs(request):
 
     return render(request, 'admin_p/student-logs.html', {'admin_id': admin_id, 'full_name': full_name,'data': data})
 
+
 def admin_accounts(request):
     admin_id = request.session.get('admin_id', None)
     full_name = request.session.get('a_fullname', None)
@@ -779,6 +780,47 @@ def admin_accounts(request):
             user.mb_limit = mb_limit
             user.save()
             return redirect("admin_accounts")  # Redirect to email verification page
+        else:
+            first_name = request.POST.get("first_name")
+            middle_name = request.POST.get("middle_name")
+            last_name = request.POST.get("last_name")
+            username = request.POST.get("username")
+            password = request.POST.get("password")
+
+            hashed_password = encrypt(password, passwordUnique)  # Hash the password before storing
+
+            try:
+                with connection.cursor() as cursor:
+                        # Check if the student already exists in student_info
+                    cursor.execute("SELECT COUNT(*) FROM faculty_info WHERE gsuite = %s", [username])
+                    student_exists = cursor.fetchone()[0] > 0
+
+                        # Check if the user already exists in user_account
+                    cursor.execute("SELECT COUNT(*) FROM user_account WHERE username = %s", [username])
+                    user_exists = cursor.fetchone()[0] > 0
+
+                    f_id = random.randint(10000, 99999)
+
+                    if not student_exists:
+                            # Insert into student_info if not exists
+                        cursor.execute(
+                            "INSERT INTO faculty_info (id, gsuite, first_name, middle_name, last_name) VALUES (%s,%s, %s, %s, %s)",
+                            ( f_id, username, first_name, middle_name, last_name),
+                        )
+
+                    if not user_exists:
+                            # Insert into user_account if not exists
+                        cursor.execute(
+                            "INSERT INTO user_account (username, hashed_password, faculty_id, email_verified) VALUES (%s, %s, %s, %s)",
+                            (username, hashed_password, f_id, 'no'),
+                        )
+                    log_action('admin', admin_id, 'Admin added a faculty to the system', request)
+
+                    messages.error(request, "Faculty registered success, verification of faculty in progress")
+                    return redirect("admin_accounts")  # Redirect to email verification page
+
+            except Exception as e:
+                messages.error(request, f"Error: {e}")
 
     data = FacultyAccount.objects.all()
     return render(request, 'admin_p/admin-accounts.html', {'admin_id': admin_id,'full_name': full_name,'data': data})
