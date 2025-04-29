@@ -346,11 +346,11 @@ def login_faculty(request):
                 u_id, username, hashed_password, first_name, middle_name, last_name, faculty_id = faculty
 
                 if decrypt(hashed_password, passwordUnique) == password:
-                    request.session['faculty_id'] = u_id  
+                    request.session['faculty_id'] = faculty_id  
                     request.session['a_fullname'] = f"{first_name} {middle_name} {last_name}"  
                     request.session.pop('faculty_login_attempts', None)  # Reset attempts on success
                     request.session.pop('faculty_lockout_time', None)  # Remove lockout if present
-                    log_action('admin', u_id, 'Logged In', request)
+                    log_action('admin', faculty_id, 'Logged In', request)
 
                     
                     return redirect('faculty_folders')  
@@ -1048,6 +1048,9 @@ def reg_student(request):
                 request.session['student_email'] = student_email
                 request.session['student_srcode'] = sr_code
                 log_action('student', sr_code, 'Registered to the system', request)
+                otp = generate_otp()
+                request.session["otp"] = otp
+                request.session["otp_expiry"] = (now() + datetime.timedelta(minutes=5)).isoformat()
 
                 messages.success(request, "Registration successful! Please verify your email.")
                 return redirect("student_everif")  # Redirect to email verification page
@@ -1117,6 +1120,27 @@ def join_folder(request):
             return redirect('student_folder')  # or show a message: "Folder not found"
     return redirect('student_folder')
 
+
+def faculty_direct_verif(request):
+    """Handle OTP verification"""
+    if request.method == 'POST':
+        g_email = request.POST.get('g_email')
+        try:
+            if UserAccount.objects.filter(username=g_email, email_verified='no').exists():
+                student = FacultyAccount.objects.get(gsuite=g_email)
+                request.session['student_email'] = student.gsuite
+                request.session['student_srcode'] = student.faculty_id
+                otp = generate_otp()
+                request.session["otp"] = otp
+                request.session["otp_expiry"] = (now() + datetime.timedelta(minutes=5)).isoformat()
+                send_email(otp, student.gsuite)
+                return redirect("faculty_everif")
+            else:
+                messages.error(request, "Email is already verified or does not exist.")
+        except UserAccount.DoesNotExist:
+            messages.error(request, "Faculty with this email does not exist.")
+        
+    return render(request, "faculty/f-dverif.html")
 
 def student_direct_verif(request):
     """Handle OTP verification"""
@@ -1744,7 +1768,7 @@ def view_folder_f(request, folder_code):
                 file_record = FolderFile.objects.filter(folder_code=folder_code, file_id=file_id).first()
 
                 if file_record:
-                    file_path = os.path.join(folder_path, file_name)
+                    file_path = os.path.join(*folder_path.split('_'), file_name)
 
                     # Remove file from filesystem
                     if os.path.exists(file_path):
@@ -1948,7 +1972,7 @@ def faculty_folders(request):
                 "folder": folder_code.replace('_', '/'),
                 "modified_time": file_mod_time.strftime("%Y-%m-%d %H:%M:%S"),
             })
-
+    print(faculty_id)
     # Sort by modification time (latest first) and get the latest 5
     latest_files = sorted(latest_files, key=lambda x: x["modified_time"], reverse=True)[:5]
     user = UserAccount.objects.get(faculty_id=faculty_id)

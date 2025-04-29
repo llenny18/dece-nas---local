@@ -721,6 +721,29 @@ const Helpers = {
       .forEach(listener => this._listeners.splice(this._listeners.indexOf(listener), 1))
   },
 
+
+  initPasswordToggle1() {
+    const toggler = document.querySelectorAll('.form-password-toggle1 i')
+    if (typeof toggler !== 'undefined' && toggler !== null) {
+      toggler.forEach(el => {
+        el.addEventListener('click', e => {
+          e.preventDefault()
+          const formPasswordToggle = el.closest('.form-password-toggle1')
+          const formPasswordToggleIcon = formPasswordToggle.querySelector('i')
+          const formPasswordToggleInput = formPasswordToggle.querySelector('input')
+
+          if (formPasswordToggleInput.getAttribute('type') === 'text') {
+            formPasswordToggleInput.setAttribute('type', 'password')
+            formPasswordToggleIcon.classList.replace('bx-show', 'bx-hide')
+          } else if (formPasswordToggleInput.getAttribute('type') === 'password') {
+            formPasswordToggleInput.setAttribute('type', 'text')
+            formPasswordToggleIcon.classList.replace('bx-hide', 'bx-show')
+          }
+        })
+      })
+    }
+  },
+
   // ---
   // Init Password Toggle
   initPasswordToggle() {

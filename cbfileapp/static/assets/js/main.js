@@ -99,6 +99,7 @@ let menu, animate;
 
   // Toggle Password Visibility
   window.Helpers.initPasswordToggle();
+  window.Helpers.initPasswordToggle1();
 
   // Speech To Text
   window.Helpers.initSpeechToText();
