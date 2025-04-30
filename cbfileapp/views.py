@@ -1761,6 +1761,19 @@ def view_folder_f(request, folder_code):
 
                 else:
                     messages.error(request, "All fields are required!")
+            elif "change_flname" in request.POST:
+                file_name = request.POST.get("file_name")
+                u_code = request.POST.get("u_code")
+                file_record = FolderTns.objects.filter(unique_code=u_code).first()
+
+                if file_record:
+                    file_record.folder_name = file_name  # Update the field
+                    file_record.save()  # Save the changes
+                    messages.success(request, f"Folder name updated successfully.")
+                    return redirect("view_folder_f", folder_code=folder_code)
+                else:
+                    messages.success(request, f"Folder record not found.")
+                    return redirect("view_folder_f", folder_code=folder_code)
             elif "delete_file" in request.POST:
                 file_name = request.POST.get("file_name")
                 file_id = request.POST.get("file_id")
@@ -1857,6 +1870,489 @@ def view_folder_f(request, folder_code):
     return render(request, "faculty/folder_contents.html", context)
 
 
+def view_folder_s_l(request, folder_code):
+    """ Faculty view of folder with file listing. """
+    student_id = request.session.get("student_id")
+    full_name = request.session.get("s_fullname")
+
+    if not student_id:
+        return redirect(reverse("student_login"))
+
+    matching_folders = FolderTns.objects.filter(
+        Q(unique_code__startswith=f"{folder_code}_")
+    ).values(
+        'unique_code',
+        'folder_name',
+        'description',
+        'apicode'
+    )
+            
+    # Get the student's folder files
+    folder_files1 = FolderFile.objects.filter(folder_code=folder_code, uploader_id=student_id)
+    folder_files2 = FacultyFiles.objects.filter(folder_code=folder_code)
+    shared_files = FilesShared.objects.filter(folder_code=folder_code)
+    students = StudentAccount.objects.all()
+
+    # Combine both folder files into one queryset
+    all_folder_files = list(folder_files1) + list(folder_files2)
+
+    # Initialize counters
+    total_size_bytes = 0
+    total_files = 0
+    total_folders = 0
+    files_today = 0
+    files_this_week = 0
+    files_this_month = 0
+    latest_files = []
+
+    # Get current date info for filtering
+    today = datetime.date.today()
+    start_of_week = today - datetime.timedelta(days=today.weekday())  # Monday of current week
+    start_of_month = today.replace(day=1)  # First day of the current month
+
+    # Get folder path
+    folder_path = os.path.join(NETWORK_DRIVE_PATH, *folder_code.split('_'))
+
+    # Check if folder exists
+    if os.path.exists(folder_path):
+        # Get all folder files uploaded by the student (across all folders)
+        all_student_uploaded_files = FolderFile.objects.filter(uploader_id=student_id)
+
+        # Build a dictionary: { folder_path: [file1, file2, ...] }
+        student_files_map = {}
+        for f in all_student_uploaded_files:
+            folder_path = os.path.join(NETWORK_DRIVE_PATH, *f.folder_code.split('_'))
+            student_files_map.setdefault(folder_path, []).append(f.file_name)
+
+
+        # Traverse the whole network drive to calculate student's total file data
+        for root, dirs, files in os.walk(NETWORK_DRIVE_PATH):
+            # Optionally, count folders if they belong to the student's uploads
+            if root in student_files_map:
+                student_folders = StudentFolder.objects.filter(student_id=student_id).values_list("folder_id", flat=True).distinct()
+                total_folders = student_folders.count()
+
+
+            for file in files:
+                # Check if this file is one the student uploaded in this folder
+                if file in student_files_map.get(root, []):
+                    file_path = os.path.join(root, file)
+                    file_size = os.path.getsize(file_path)
+                    total_size_bytes += file_size
+                    total_files += 1
+
+                    file_mod_time = datetime.datetime.fromtimestamp(os.path.getmtime(file_path)).date()
+
+                    if file_mod_time == today:
+                        files_today += 1
+                    if file_mod_time >= start_of_week:
+                        files_this_week += 1
+                    if file_mod_time >= start_of_month:
+                        files_this_month += 1
+
+
+                    latest_files.append({
+                        "name": file,
+                        "extension": os.path.splitext(file)[1],
+                        "size_mb": round(file_size / (1024 ** 2), 2),
+                        "folder": root.replace(NETWORK_DRIVE_PATH, "").strip("\\"),
+                        "modified_time": datetime.datetime.fromtimestamp(os.path.getmtime(file_path)).strftime("%Y-%m-%d %H:%M:%S"),
+                    })
+
+
+    # Sort latest files and get top 5
+    latest_files = sorted(latest_files, key=lambda x: x["modified_time"], reverse=True)[:5]
+
+    # Prepare file categorization
+    files = {
+        "texts": [],
+        "pdfs": [],
+        "images": [],
+        "videos": []
+    }
+
+    if os.path.exists(folder_path):
+        all_files = os.listdir(folder_path)
+
+        for file in all_files:
+            file_path = os.path.join(folder_path, file)
+            uploaded_timestamp = os.path.getmtime(file_path)
+            uploaded_datetime = datetime.datetime.fromtimestamp(uploaded_timestamp).strftime('%Y-%m-%d %H:%M:%S')
+
+            # Check if the file exists in folder_files and if uploader_id matches the student_id
+            file_record = next((f for f in all_folder_files if f.file_name == file and f.uploader_id == student_id), None)
+
+            if file_record:  # Proceed only if the file exists and uploader_id matches
+                file_info = {
+                    "file_id": file_record.file_id if file_record else "No ID",
+                    "file_name": file_record.file_guide if file_record else "No name",
+                    "file_description": file_record.file_description if file_record else "No description",
+                    "file_link": file,
+                    "uploaded_at": uploaded_datetime
+                }
+
+                if file.lower().endswith(PDF_EXTENSION):
+                    files["pdfs"].append(file_info)
+                elif file.lower().endswith(IMAGE_EXTENSIONS):
+                    files["images"].append(file_info)
+                elif file.lower().endswith(VIDEO_EXTENSIONS):
+                    files["videos"].append(file_info)
+                elif file.lower().endswith(TEXT_EXTENSION):
+                    files["texts"].append(file_info)
+
+    # Handle POST requests
+    if request.method == "POST":
+        try:
+            if "change_fname" in request.POST:
+                file_name = request.POST.get("file_name")
+                file_id = request.POST.get("file_id")
+                file_record = FolderFile.objects.filter(file_id=file_id).first()
+
+                if file_record:
+                    file_record.file_guide = file_name  # Update the field
+                    file_record.save()  # Save the changes
+                    messages.success(request, f"File name updated successfully.")
+                    return redirect("view_folder_s", folder_code=folder_code)
+                else:
+                    messages.success(request, f"File record not found.")
+                    return redirect("view_folder_s", folder_code=folder_code)
+
+            else:
+                file_links = request.FILES.getlist("file_link[]")  # Get list of files
+                file_names = request.POST.getlist("file_name[]")  # Get list of file names
+                file_descriptions = request.POST.getlist("file_description[]")  # Get list of descriptions
+
+                if not file_links:
+                    return JsonResponse({"error": "No files uploaded"}, status=400)
+
+                for idx, file in enumerate(file_links):
+                    # Get file details
+                    file_name = file_names[idx] if idx < len(file_names) else file.name
+                    file_description = file_descriptions[idx] if idx < len(file_descriptions) else ""
+
+                    # Save the file
+                    fs = FileSystemStorage(location=folder_path)
+                    saved_file_name = fs.save(file.name, file)
+
+                    # Store file in database (adjust based on your model)
+                    FolderFile.objects.create(
+                        folder_code=folder_code,
+                        file_name=saved_file_name,
+                        file_guide=file_name,
+                        file_description=file_description,
+                        file_link=os.path.join(folder_code, saved_file_name).replace("\\", "/"),
+                        uploader_id=student_id,  # Ensure student_id is correctly retrieved
+                    )
+
+            return redirect("view_folder_s", folder_code=folder_code)
+
+        except Exception as e:
+            return JsonResponse({"error": "File upload failed", "details": str(e)}, status=500)
+
+    
+    user = UserAccount.objects.get(student_id=student_id)
+    notification = user.get_storage_notification(round(total_size_bytes / (1024**2), 2))
+    limit = user.get_storage_limit(round(total_size_bytes / (1024**2), 2))
+
+    context = {
+        "student_id": student_id,
+        "full_name": full_name,
+        "folder_files": all_folder_files,
+        "folder_code": folder_code,
+        "students": students,
+        "shared_files": shared_files,
+        "files": files,
+        "total_files": total_files,
+        "total_size_mb": round(total_size_bytes / (1024**2), 2),  # Convert to MB
+        "total_size_gb": round(total_size_bytes / (1024**3), 2),  # Convert to GB
+        "total_folders": total_folders,
+        "files_today": files_today,
+        "files_this_week": files_this_week,
+        "files_this_month": files_this_month,
+        "latest_files": latest_files,
+        'grouped_folders': matching_folders,
+        'notification':notification if notification else f"✅ Storage usage is within limit. {round(total_size_bytes / (1024**2), 2)} / {user.mb_limit} MBs used",
+        'limit': limit if limit else "no",
+    }
+    return render(request, "student/folder_contents.html", context)
+
+
+def view_folder_f_l(request, folder_code):
+    """ Faculty view of folder with file listing. """
+    faculty_id = request.session.get("faculty_id")
+    full_name = request.session.get("a_fullname")
+
+    if not faculty_id:
+        return redirect(reverse("faculty_login"))
+    
+    # Get folders matching exact folder_code or folder_code with underscore
+    matching_folders = FolderTns.objects.filter(
+        faculty_id=faculty_id
+    ).filter(
+        Q(unique_code__startswith=f"{folder_code}_")
+    ).values('unique_code', 'folder_name', 'description', 'apicode')
+
+    # Fetch student-linked folders from StudentFolderView using the same logic
+    student_folders = StudentFolderView.objects.filter(
+        faculty_id=faculty_id,
+        unique_code__in=[f['unique_code'] for f in matching_folders]
+    ).values(
+        'unique_code', 'folder_name', 'description', 'apicode', 'faculty_gsuite',
+        'student_first_name', 'student_last_name'
+    )
+
+    # Group student folders
+    grouped_folders = {}
+    for folder in student_folders:
+        code = folder['unique_code']
+        if code not in grouped_folders:
+            grouped_folders[code] = {
+                'folder_name': folder['folder_name'],
+                'description': folder['description'],
+                'apicode': folder['apicode'],
+                'faculty_gsuite': folder['faculty_gsuite'],
+                'students': []
+            }
+        student_name = f"{folder['student_first_name']} {folder['student_last_name']}"
+        grouped_folders[code]['students'].append(student_name)
+
+    # Prepare subquery to identify student-linked folders
+    student_subquery = StudentFolderView.objects.filter(
+        faculty_id=faculty_id,
+        unique_code=OuterRef('unique_code')
+    ).values('unique_code')
+
+    # Get folders with no students (empty folders)
+    empty_folders = FacultyFoldersView.objects.filter(
+        faculty_id=faculty_id,
+        unique_code__in=[f['unique_code'] for f in matching_folders]
+    ).exclude(
+        unique_code__in=Subquery(student_subquery)
+    ).values('unique_code', 'folder_name', 'description', 'apicode', 'faculty_email')
+
+    # Get faculty files
+    folder_files1 = FileOfStudents.objects.filter(folder_code=folder_code)
+    folder_files2 = FacultyFiles.objects.filter(folder_code=folder_code, uploader_id=faculty_id)
+    students = StudentAccount.objects.all()
+    shared_files = FilesShared.objects.filter(folder_code=folder_code)
+
+    # Combine both folder files into one queryset
+    all_folder_files = list(folder_files1) + list(folder_files2)
+    
+    # Get faculty file names for filtering
+    faculty_file_names = [f.file_name for f in folder_files2]
+    
+    # Initialize counters
+    total_size_bytes = 0
+    f_files = FolderFile.objects.filter(uploader_id=faculty_id)
+    total_files = f_files.count()
+    total_folders = 0
+    files_today = 0
+    files_this_week = 0
+    files_this_month = 0
+    latest_files = []
+
+    # Get current date info for filtering
+    today = datetime.date.today()
+    start_of_week = today - datetime.timedelta(days=today.weekday())  # Monday of current week
+    start_of_month = today.replace(day=1)  # First day of the current month
+
+    # Get folder path
+    folder_path = os.path.join(NETWORK_DRIVE_PATH, *folder_code.split('_'))
+
+    # Check if folder exists
+    if os.path.exists(folder_path):
+        # Get all files uploaded by this faculty member (all folders)
+        faculty_uploaded_files = FolderFile.objects.filter(uploader_id=faculty_id)
+
+    # Count total folders the faculty owns
+        total_folders = FolderTns.objects.filter(faculty_id=faculty_id).count()
+
+        # Loop through all uploaded files
+        for file_obj in faculty_uploaded_files:
+            # Build full file path
+            folder_parts = file_obj.folder_code.split('_')
+            file_path = os.path.join(NETWORK_DRIVE_PATH, *folder_parts, file_obj.file_name)
+
+            if os.path.isfile(file_path):  # Make sure it's a file, not a directory
+                file_size = os.path.getsize(file_path)
+                total_size_bytes += file_size
+
+                file_mod_time = datetime.datetime.fromtimestamp(os.path.getmtime(file_path)).date()
+
+                if file_mod_time == today:
+                    files_today += 1
+                if file_mod_time >= start_of_week:
+                    files_this_week += 1
+                if file_mod_time >= start_of_month:
+                    files_this_month += 1
+
+
+        # Sort by modification time (latest first) and get the latest 5
+        latest_files = sorted(latest_files, key=lambda x: x["modified_time"], reverse=True)[:5]
+
+    # Prepare file categorization
+    files = {
+        "pdfs": [],
+        "images": [],
+        "texts": [],
+        "videos": []
+    }
+
+    # Process files in the specific folder
+    if os.path.exists(folder_path):
+        all_files = os.listdir(folder_path)
+
+        for file in all_files:
+            # Only process files associated with this faculty
+            if file in faculty_file_names:
+                file_path = os.path.join(folder_path, file)
+                uploaded_timestamp = os.path.getmtime(file_path)
+                uploaded_datetime = datetime.datetime.fromtimestamp(uploaded_timestamp).strftime('%Y-%m-%d %H:%M:%S')
+
+                # Get file record
+                file_record = next((f for f in all_folder_files if f.file_name == file), None)
+
+                file_info = {
+                    "file_id": file_record.file_id if file_record else "No ID",
+                    "user_name": f"{file_record.first_name} {file_record.middle_name} {file_record.last_name}" if file_record else "No name",
+                    "file_name": file_record.file_guide if file_record else "No name",
+                    "file_description": file_record.file_description if file_record else "No description",
+                    "file_link": file,
+                    "uploaded_at": uploaded_datetime
+                }
+
+                # Sort files into categories
+                if file.lower().endswith(PDF_EXTENSION):
+                    files["pdfs"].append(file_info)
+                elif file.lower().endswith(IMAGE_EXTENSIONS):
+                    files["images"].append(file_info)
+                elif file.lower().endswith(VIDEO_EXTENSIONS):
+                    files["videos"].append(file_info)
+                elif file.lower().endswith(TEXT_EXTENSION):
+                    files["texts"].append(file_info)
+
+    # Handle POST requests
+    if request.method == "POST":
+        try:
+            if "create" in request.POST:
+                folder_name = request.POST.get('folder_name', '').strip()
+                description = request.POST.get('description', '').strip()
+                apicode = request.POST.get('apicode', '').strip()
+
+                if folder_name and description and apicode:
+                    unique_code = get_random_string(10)  # Generate a unique code
+
+                    FolderTns.objects.create(
+                        folder_name=folder_name,
+                        description=description,
+                        unique_code=f"{folder_code}_{unique_code}",
+                        apicode=unique_code,
+                        faculty_id=faculty_id 
+                    )
+
+                    messages.success(request, "Folder created successfully!")
+                    return redirect(reverse('view_folder_f', kwargs={'folder_code': f"{folder_code}_{unique_code}"}))  # Redirect to refresh the page
+
+                else:
+                    messages.error(request, "All fields are required!")
+            elif "delete_file" in request.POST:
+                file_name = request.POST.get("file_name")
+                file_id = request.POST.get("file_id")
+                print(f"{file_name} s")
+                file_record = FolderFile.objects.filter(folder_code=folder_code, file_id=file_id).first()
+
+                if file_record:
+                    file_path = os.path.join(*folder_path.split('_'), file_name)
+
+                    # Remove file from filesystem
+                    if os.path.exists(file_path):
+                        os.remove(file_path)
+                        print(f"Deleted file: {file_path}")
+
+                    # Remove record from database
+                    file_record.delete()
+                    messages.success(request, f"File Deleted successfully")
+
+                    return redirect("view_folder_f", folder_code=folder_code)
+                else:
+                    return JsonResponse({"error": "File not found in database"}, status=404)
+            elif "change_fname" in request.POST:
+                file_name = request.POST.get("file_name")
+                file_id = request.POST.get("file_id")
+                file_record = FolderFile.objects.filter(file_id=file_id).first()
+
+                if file_record:
+                    file_record.file_guide = file_name  # Update the field
+                    file_record.save()  # Save the changes
+                    messages.success(request, f"File name updated successfully.")
+                    return redirect("view_folder_f", folder_code=folder_code)
+                else:
+                    messages.success(request, f"File record not found.")
+                    return redirect("view_folder_f", folder_code=folder_code)
+            else:
+                file_links = request.FILES.getlist("file_link[]")  # Get list of files
+                file_names = request.POST.getlist("file_name[]")  # Get list of file names
+                file_descriptions = request.POST.getlist("file_description[]")  # Get list of descriptions
+
+                if not file_links:
+                    return JsonResponse({"error": "No files uploaded"}, status=400)
+
+                for idx, file in enumerate(file_links):
+                    # Get file details
+                    file_name = file_names[idx] if idx < len(file_names) else file.name
+                    file_description = file_descriptions[idx] if idx < len(file_descriptions) else ""
+
+                    # Save the file
+                    fs = FileSystemStorage(location=folder_path)
+                    saved_file_name = fs.save(file.name, file)
+
+                    # Store file in database (adjust based on your model)
+                    FolderFile.objects.create(
+                        folder_code=folder_code,
+                        file_name=saved_file_name,
+                        file_guide=file_name,
+                        file_description=file_description,
+                        file_link=os.path.join(folder_code, saved_file_name).replace("\\", "/"),
+                        uploader_id=faculty_id,  # Ensure faculty_id is correctly retrieved
+                    )
+
+            messages.success(request, f"File Uploaded successfully")
+            return redirect("view_folder_f", folder_code=folder_code)
+
+        except Exception as e:
+            return JsonResponse({"error": "File operation failed", "details": str(e)}, status=500)
+
+    user = UserAccount.objects.get(faculty_id=faculty_id)
+
+    notification = user.get_storage_notification(round(total_size_bytes / (1024**2)))
+    limit = user.get_storage_limit(round(total_size_bytes / (1024**2)))
+
+    context = {
+        "faculty_id": faculty_id,
+        "full_name": full_name,
+        "folder_files": folder_files1,
+        "folder_code": folder_code,
+        "students": students,
+        "shared_files": shared_files,
+        "files": files,
+        "total_files": total_files,
+        "total_size_mb": round(total_size_bytes / (1024**2), 2),  # Convert to MB
+        "total_size_gb": round(total_size_bytes / (1024**3), 2),  # Convert to GB
+        "total_folders": total_folders,
+        "files_today": files_today,
+        "files_this_week": files_this_week,
+        "files_this_month": files_this_month,
+        "latest_files": latest_files,
+        'grouped_folders': grouped_folders,
+        'empty_folders': empty_folders,
+        'notification':notification if notification else f"✅ Storage usage is within limit. {round(total_size_bytes / (1024**2), 2)} / {user.mb_limit} MBs used",
+        'limit': limit if limit else "no",
+    }
+    return render(request, "faculty/folder_contents_l.html", context)
+
+
+
 
 def faculty_folders(request):
     faculty_id = request.session.get('faculty_id', None)
@@ -1889,6 +2385,19 @@ def faculty_folders(request):
 
             else:
                 messages.error(request, "All fields are required!")
+        elif "change_flname" in request.POST:
+            file_name = request.POST.get("file_name")
+            u_code = request.POST.get("u_code")
+            file_record = FolderTns.objects.filter(unique_code=u_code).first()
+
+            if file_record:
+                file_record.folder_name = file_name  # Update the field
+                file_record.save()  # Save the changes
+                messages.success(request, f"Folder name updated successfully.")
+                return redirect("view_folder_f", folder_code=folder_code)
+            else:
+                messages.success(request, f"Folder record not found.")
+                return redirect("view_folder_f", folder_code=folder_code)
         else:
             if "folder_code_delete" in request.POST:
                 folder_code = request.POST.get("folder_code_delete")

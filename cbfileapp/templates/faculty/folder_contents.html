@@ -43,6 +43,20 @@
     <!--! Template customizer & Theme config files MUST be included after core stylesheets and helpers.js in the <head> section -->
     <!--? Config:  Mandatory theme config file contain global vars & default theme options, Set your preferred theme option in this file.  -->
     <script src="{% static 'assets/js/config.js' %}"></script>
+    <style>
+      .toggle-icons {
+        font-size: 30px;
+        cursor: pointer;
+        margin: 10px;
+        color: gray;
+      }
+      .toggle-icons.active {
+        color: dodgerblue;
+      }
+      .hidden {
+        display: none;
+      }
+    </style>
   </head>
 
   <body>
@@ -63,6 +77,8 @@
             <div class="container-xxl flex-grow-1 container-p-y">
               <h6 class="alert alert-danger">{{ notification }}</h6>
               <h4 class="fw-bold py-3 mb-4">Folders In this Current Folder</h4>
+              <i id="cardView" class='bx bxs-card toggle-icons'></i>
+              <i id="listView" class='bx bx-list-ul toggle-icons'></i>
               {% if messages %}
               <div class="alert alert-danger">
                   {% for message in messages %}
@@ -82,7 +98,48 @@
               >
               <i class="bx bx-folder-plus me-2" style="color: white; font-size: 22px; margin-top: -4px;"></i> Create New Folder
               </button>
-
+             
+              
+              <!-- Divs -->
+              <div id="cardDiv">
+                <h2>This is Card View</h2>
+              </div>
+              
+              <div id="listDiv" class="hidden">
+                <h2>This is List View</h2>
+              </div>
+              
+              <script>
+                const cardIcon = document.getElementById('cardView');
+                const listIcon = document.getElementById('listView');
+                const cardDiv = document.getElementById('cardDiv');
+                const listDiv = document.getElementById('listDiv');
+              
+                // Function to set view
+                function setView(view) {
+                  if (view === 'card') {
+                    cardDiv.classList.remove('hidden');
+                    listDiv.classList.add('hidden');
+                    cardIcon.classList.add('active');
+                    listIcon.classList.remove('active');
+                    localStorage.setItem('selectedView', 'card');
+                  } else if (view === 'list') {
+                    cardDiv.classList.add('hidden');
+                    listDiv.classList.remove('hidden');
+                    cardIcon.classList.remove('active');
+                    listIcon.classList.add('active');
+                    localStorage.setItem('selectedView', 'list');
+                  }
+                }
+              
+                // On page load: check saved view
+                const savedView = localStorage.getItem('selectedView') || 'card';
+                setView(savedView);
+              
+                // Event listeners
+                cardIcon.addEventListener('click', () => setView('card'));
+                listIcon.addEventListener('click', () => setView('list'));
+              </script>
              <!-- Modal -->
 <form method="POST">
   {% csrf_token %}
@@ -119,6 +176,27 @@
 
 <div class="row">
 {% for unique_code, folder in grouped_folders.items %}
+<div class="modal fade" id="foldermodal{{unique_code}}" tabindex="-1" role="dialog">
+  <div class="modal-dialog" role="document">
+    <form method="post">
+      {% csrf_token %}
+      <div class="modal-content">
+        <div class="modal-body">
+          <label>File Name</label>
+          <input type="hidden" name="u_code" value="{{ unique_code }}">
+          <input class="form-control" type="text" name="file_name" value="{{ folder.folder_name }}">
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" data-dismiss="modal">Close</button>
+          <button class="btn btn-success" name="change_flname">Change File Name</button>
+        </div>
+      </div>
+    </form>
+  </div>
+</div>
+
+
+
 <div class="col-xl-4 col-md-4">
   
   <div class="nav-align-top mb-4">
@@ -167,9 +245,12 @@
       <div class="tab-pane fade show active" id="navs-justified-home{{ unique_code }}" role="tabpanel">
         <div class="row">
            
-          <div class="col-md-4">
+          <div class="col-md-3">
         <a class="btn btn-success" href="{% url 'view_folder_f' folder_code=unique_code %}">Enter Folder</a>
         </div>
+        <div class="col-md-3">
+          <button class="btn btn-success"  data-bs-toggle="modal" data-bs-target="#foldermodal{{unique_code}}">Edit Name</button>
+          </div>
         <div class="col-md-6">
     
           <form method="post" onsubmit="return confirmDelete()">
@@ -211,6 +292,25 @@
 
 
 {% for folder in empty_folders %}
+
+<div class="modal fade" id="foldermodal{{folder.unique_code}}" tabindex="-1" role="dialog">
+  <div class="modal-dialog" role="document">
+    <form method="post">
+      {% csrf_token %}
+      <div class="modal-content">
+        <div class="modal-body">
+          <label>File Name</label>
+          <input type="hidden" name="u_code" value="{{ folder.unique_code }}">
+          <input class="form-control" type="text" name="file_name" value="{{ folder.folder_name }}">
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" data-dismiss="modal">Close</button>
+          <button class="btn btn-success" name="change_flname">Change File Name</button>
+        </div>
+      </div>
+    </form>
+  </div>
+</div>
 <div class="col-xl-4 col-md-4">
   
   <div class="nav-align-top mb-4">
@@ -261,9 +361,12 @@
         
         <div class="row">
            
-          <div class="col-md-4">
+          <div class="col-md-3">
             <a class="btn btn-success" href="{% url 'view_folder_f' folder_code=folder.unique_code %}">Enter Folder</a>
         </div>
+        <div class="col-md-3">
+          <button class="btn btn-success"  data-bs-toggle="modal" data-bs-target="#foldermodal{{folder.unique_code}}">Edit Name</button>
+          </div>
         <div class="col-md-6">
     
           <form method="post" onsubmit="return confirmDelete()">
@@ -477,257 +580,153 @@
 
 
               <div class="row mb-5"   id="folder-contents">
-              
+                <ul class="list-group">
                   {% for pdf in files.pdfs %}
-                      <div class="col-md-6 col-xl-6 file-item" >
-                          <div class="card mb-3">
-                              <div class="card-body">
-                                  <h5 class="card-title file-name d-flex justify-content-between">Name: {{ pdf.file_name }} ({{ pdf.file_link }}) <div class="dropdown ml-auto">
-                                    <button class="btn btn-link " type="button" id="dropdownMenuButton" data-bs-toggle="dropdown" aria-expanded="false">
-                                      <i class="bx bxs-cog text-danger"></i>
-                                    </button>
-                                    <ul class="dropdown-menu" aria-labelledby="dropdownMenuButton">
-                                      <li><a class="dropdown-item" href="{% url 'f_serve_file'  folder_code=folder_code filename=pdf.file_link  %}" download> Download</a></li>
-                                      <li><button class="dropdown-item btn"  type="button" data-bs-toggle="modal" data-bs-target="#filemodal{{pdf.file_id}}">Edit</button></li>
-                                      <li><form method="post" onsubmit="return confirmDelete()">              
-                                        {% csrf_token %}
-                                      
-                                                                      <input type="text" value="{{ pdf.file_link }}" name="file_name" style="display: none;">
-                                                                      <input type="text" value="{{ pdf.file_id }}" name="file_id" style="display: none;">
-                                                                      <button type="submit" class="btn " name="delete_file">Delete</button>
-                                                                  </form>
-                                                                  
-                                                                  <script>
-                                                                      function confirmDelete() {
-                                                                          return confirm("Are you sure you want to delete this file?");
-                                                                      }
-                                                                  </script></li>
-                                    </ul>
-                                  </div></h5>
-                                  <p class="card-text file-description">Description: {{ pdf.file_description }}</p>
-                                  <p class="card-text file-description">Uploader: {{ pdf.user_name }}</p>
-                                  <p class="card-text file-description">Date Uploaded: {{ pdf.uploaded_at }}</p>
-                                  
-                                  <iframe src="{% url 'f_serve_file' folder_code=folder_code filename=pdf.file_link  %}" style="width: 100%;" height="400"></iframe>
-<!-- Modal -->
-<div class="modal fade" id="filemodal{{pdf.file_id}}" tabindex="-1" role="dialog" aria-labelledby="exampleModalLabel" aria-hidden="true">
-  <div class="modal-dialog" role="document">
-      <form method="post">
-        {% csrf_token %}
-        <div class="modal-content">
-      <div class="modal-body">
-        <label>File Name</label>
-
-      <input class="form-control" type="text" value="{{ pdf.file_id }}" readonly name="file_id" style="display: none;">
-      <input class="form-control" type="text" value="{{ pdf.file_name }}" name="file_name">
-      
-  
-      </div>
-      <div class="modal-footer">
-        <button type="button" class="btn btn-secondary" data-dismiss="modal">Close</button>
-        <button class="btn btn-success" name="change_fname">Change File Name</button>
-      </form>
-      </div>
-    </div>
-  </div>
-</div>
-                              <hr>
-                             
-                              </div>
+                    <li class="list-group-item file-item">
+                      {{ pdf.file_name }} (<a href="{% url 'f_serve_file' folder_code=folder_code filename=pdf.file_link %}" target="_blank">{{ pdf.file_link }}</a>) |
+                      <a href="{% url 'f_serve_file' folder_code=folder_code filename=pdf.file_link %}" download>Download</a> |
+                      <button type="button" data-bs-toggle="modal" data-bs-target="#filemodal{{pdf.file_id}}">Edit</button> |
+                      <form method="post" onsubmit="return confirmDelete()" style="display:inline;">
+                        {% csrf_token %}
+                        <input type="hidden" name="file_name" value="{{ pdf.file_link }}">
+                        <input type="hidden" name="file_id" value="{{ pdf.file_id }}">
+                        <button type="submit" name="delete_file">Delete</button>
+                      </form>
+                    </li>
+                
+                    <!-- Modal -->
+                    <div class="modal fade" id="filemodal{{pdf.file_id}}" tabindex="-1" role="dialog">
+                      <div class="modal-dialog" role="document">
+                        <form method="post">
+                          {% csrf_token %}
+                          <div class="modal-content">
+                            <div class="modal-body">
+                              <label>File Name</label>
+                              <input type="hidden" name="file_id" value="{{ pdf.file_id }}">
+                              <input class="form-control" type="text" name="file_name" value="{{ pdf.file_name }}">
+                            </div>
+                            <div class="modal-footer">
+                              <button type="button" class="btn btn-secondary" data-dismiss="modal">Close</button>
+                              <button class="btn btn-success" name="change_fname">Change File Name</button>
+                            </div>
                           </div>
+                        </form>
                       </div>
-                      
-
-                      
+                    </div>
                   {% endfor %}
-
+                
                   {% for text in files.texts %}
-                      <div class="col-md-6 col-xl-6 file-item" >
-                          <div class="card mb-3">
-                              <div class="card-body">
-                                  <h5 class="card-title file-name d-flex justify-content-between">Name: {{ text.file_name }} ({{ text.file_link }}) <div class="dropdown ml-auto">
-                                    <button class="btn btn-link " type="button" id="dropdownMenuButton" data-bs-toggle="dropdown" aria-expanded="false">
-                                      <i class="bx bxs-cog text-danger"></i>
-                                    </button>
-                                    <ul class="dropdown-menu" aria-labelledby="dropdownMenuButton">
-                                      <li><a class="dropdown-item" href="{% url 'f_serve_file'  folder_code=folder_code filename=text.file_link  %}" download> Download</a></li>
-                                      <li><button class="dropdown-item btn"  type="button" data-bs-toggle="modal" data-bs-target="#filemodal{{text.file_id}}">Edit</button></li>
-                                      <li><form method="post" onsubmit="return confirmDelete()">              
-                                        {% csrf_token %}
-                                      
-                                                                      <input type="text" value="{{ text.file_link }}" name="file_name" style="display: none;">
-                                                                      <input type="text" value="{{ text.file_id }}" name="file_id" style="display: none;">
-                                      
-                                                                      <button type="submit" class="btn " name="delete_file">Delete</button>
-                                                                  </form>
-                                                                  
-                                                                  <script>
-                                                                      function confirmDelete() {
-                                                                          return confirm("Are you sure you want to delete this file?");
-                                                                      }
-                                                                  </script></li>
-                                    </ul>
-                                  </div></h5>
-                                  <p class="card-text file-description">Description: {{ text.file_description }}</p>
-                                  <p class="card-text file-description">Uploader: {{ text.user_name }}</p>
-                                  <p class="card-text file-description">Date Uploaded: {{ text.uploaded_at }}</p>
-                                  <hr>
-                                  <object data="{% url 'f_serve_file' folder_code=folder_code filename=text.file_name %}" style="width: 100%;" height="400"></object>
-<!-- Modal -->
-<div class="modal fade" id="filemodal{{text.file_id}}" tabindex="-1" role="dialog" aria-labelledby="exampleModalLabel" aria-hidden="true">
-  <div class="modal-dialog" role="document">
-      <form method="post">
-        {% csrf_token %}
-        <div class="modal-content">
-      <div class="modal-body">
-        <label>File Name</label>
-      <input class="form-control" type="text" value="{{ text.file_id }}" readonly name="file_id" style="display: none;">
-      <input class="form-control" type="text" value="{{ text.file_name }}" name="file_name">
-      
-  
-      </div>
-      <div class="modal-footer">
-        <button type="button" class="btn btn-secondary" data-dismiss="modal">Close</button>
-        <button class="btn btn-success" name="change_fname">Change File Name</button>
-      </form>
-      </div>
-    </div>
-  </div>
-</div>
-
-                              <hr>
-                             
-                            
-                              </div>
+                    <li class="list-group-item file-item">
+                      {{ text.file_name }} (<a href="{% url 'f_serve_file' folder_code=folder_code filename=text.file_link %}" target="_blank">{{ text.file_link }}</a>) |
+                      <a href="{% url 'f_serve_file' folder_code=folder_code filename=text.file_link %}" download>Download</a> |
+                      <button type="button" data-bs-toggle="modal" data-bs-target="#filemodal{{text.file_id}}">Edit</button> |
+                      <form method="post" onsubmit="return confirmDelete()" style="display:inline;">
+                        {% csrf_token %}
+                        <input type="hidden" name="file_name" value="{{ text.file_link }}">
+                        <input type="hidden" name="file_id" value="{{ text.file_id }}">
+                        <button type="submit" name="delete_file">Delete</button>
+                      </form>
+                    </li>
+                
+                    <!-- Modal -->
+                    <div class="modal fade" id="filemodal{{text.file_id}}" tabindex="-1" role="dialog">
+                      <div class="modal-dialog" role="document">
+                        <form method="post">
+                          {% csrf_token %}
+                          <div class="modal-content">
+                            <div class="modal-body">
+                              <label>File Name</label>
+                              <input type="hidden" name="file_id" value="{{ text.file_id }}">
+                              <input class="form-control" type="text" name="file_name" value="{{ text.file_name }}">
+                            </div>
+                            <div class="modal-footer">
+                              <button type="button" class="btn btn-secondary" data-dismiss="modal">Close</button>
+                              <button class="btn btn-success" name="change_fname">Change File Name</button>
+                            </div>
                           </div>
+                        </form>
                       </div>
+                    </div>
                   {% endfor %}
                 
                   {% for video in files.videos %}
-                      <div class="col-md-6 col-xl-6 file-item" >
-                          <div class="card mb-3">
-                              <div class="card-body">
-                                  <h5 class="card-title file-name d-flex justify-content-between">Name: {{ video.file_name }} ({{ video.file_link }}) <div class="dropdown ml-auto">
-                                    <button class="btn btn-link " type="button" id="dropdownMenuButton" data-bs-toggle="dropdown" aria-expanded="false">
-                                      <i class="bx bxs-cog text-danger"></i>
-                                    </button>
-                                    <ul class="dropdown-menu" aria-labelledby="dropdownMenuButton">
-                                      <li><a class="dropdown-item" href="{% url 'f_serve_file'  folder_code=folder_code filename=video.file_link  %}" download> Download</a></li>
-                                      <li><button class="dropdown-item btn"  type="button" data-bs-toggle="modal" data-bs-target="#filemodal{{video.file_id}}">Edit</button></li>
-                                      <li> <form method="post" onsubmit="return confirmDelete()">              
-                                        {% csrf_token %}
-                                      
-                                                                      <input type="text" value="{{ video.file_link }}" name="file_name" style="display: none;">
-                                                                      <input type="text" value="{{ video.file_id }}" name="file_id" style="display: none;">
-                                      
-                                                                      <button type="submit" class="btn" name="delete_file">Delete</button>
-                                                                  </form>
-                                                                  
-                                                                  <script>
-                                                                      function confirmDelete() {
-                                                                          return confirm("Are you sure you want to delete this file?");
-                                                                      }
-                                                                  </script></li>
-                                    </ul>
-                                  </div></h5>
-                                  <p class="card-text file-description">Description: {{ video.file_description }}</p>
-                                  <p class="card-text file-description">Uploader: {{ video.user_name }}</p>
-                                  <p class="card-text file-description">Date Uploaded: {{ video.uploaded_at }}</p>
-                                  
-                                  <video width="450" controls>
-                                    <source src="{% url 'f_serve_file'  folder_code=folder_code filename=video.file_link  %}" type="video/mp4">
-                                    Your browser does not support the video tag.
-                                </video>
-                              <hr>
-                              <!-- Modal -->
-<div class="modal fade" id="filemodal{{video.file_id}}" tabindex="-1" role="dialog" aria-labelledby="exampleModalLabel" aria-hidden="true">
-  <div class="modal-dialog" role="document">
-      <form method="post">
-        {% csrf_token %}
-        <div class="modal-content">
-      <div class="modal-body">
-        <label>File Name</label>
-
-      <input class="form-control" type="text" value="{{ video.file_id }}" readonly name="file_id" style="display: none;">
-      <input class="form-control" type="text" value="{{ video.file_name }}" name="file_name">
-      
-  
-      </div>
-      <div class="modal-footer">
-        <button type="button" class="btn btn-secondary" data-dismiss="modal">Close</button>
-        <button class="btn btn-success" name="change_fname">Change File Name</button>
-      </form>
-      </div>
-    </div>
-  </div>
-</div>
-                             
-                              </div>
-                          </div>
-                      </div>
-                  {% endfor %}
-                 
-                  {% for image in files.images %}
-                      <div class="col-md-6 col-xl-6 file-item" >
-                          <div class="card mb-3">
-                              <div class="card-body">
-                                  <h5 class="card-title file-name d-flex justify-content-between">Name: {{ image.file_name }} ({{ image.file_link }}) <div class="dropdown ml-auto">
-                                    <button class="btn btn-link " type="button" id="dropdownMenuButton" data-bs-toggle="dropdown" aria-expanded="false">
-                                      <i class="bx bxs-cog text-danger"></i>
-                                    </button>
-                                    <ul class="dropdown-menu" aria-labelledby="dropdownMenuButton">
-                                      <li><a class="dropdown-item" href="{% url 'f_serve_file'  folder_code=folder_code filename=image.file_link  %}" download> Download</a></li>
-                                      <li><button class="dropdown-item btn"  type="button" data-bs-toggle="modal" data-bs-target="#filemodal{{image.file_id}}">Edit</button></li>
-                                      <li>   <form method="post" onsubmit="return confirmDelete()">              
-                                        {% csrf_token %}
-                                      
-                                                                      <input type="text" value="{{ image.file_link }}" name="file_name" style="display: none;">
-                                                                      <input type="text" value="{{ image.file_id }}" name="file_id" style="display: none;">
-                                      
-                                                                      <button type="submit" class="btn " name="delete_file">Delete</button>
-                                                                  </form>
-                                                                  
-                                                                  <script>
-                                                                      function confirmDelete() {
-                                                                          return confirm("Are you sure you want to delete this file?");
-                                                                      }
-                                                                  </script></li>
-                                    </ul>
-                                  </div></h5>
-                                  <p class="card-text file-description">Description: {{ image.file_description }}</p>
-                                  <p class="card-text file-description">Uploader: {{ image.user_name }}</p>
-                                  <p class="card-text file-description">Date Uploaded: {{ image.uploaded_at }}</p>
-                                  
-                                  <img style="width: 100%;"  src="{% url 'f_serve_file'  folder_code=folder_code filename=image.file_link  %}" width="300" alt="Image Preview">
-
-<!-- Modal -->
-<div class="modal fade" id="filemodal{{image.file_id}}" tabindex="-1" role="dialog" aria-labelledby="exampleModalLabel" aria-hidden="true">
-  <div class="modal-dialog" role="document">
-      <form method="post">
-        {% csrf_token %}
-        <div class="modal-content">
-      <div class="modal-body">
-        <label>File Name</label>
-
-      <input class="form-control" type="text" value="{{ image.file_id }}" readonly name="file_id" style="display: none;">
-      <input class="form-control" type="text" value="{{ image.file_name }}" name="file_name">
-      
-  
-      </div>
-      <div class="modal-footer">
-        <button type="button" class="btn btn-secondary" data-dismiss="modal">Close</button>
-        <button class="btn btn-success" name="change_fname">Change File Name</button>
-      </form>
-      </div>
-    </div>
-  </div>
-</div>
-                              <hr>
-                            
+                    <li class="list-group-item file-item">
+                      {{ video.file_name }} (<a href="{% url 'f_serve_file' folder_code=folder_code filename=video.file_link %}" target="_blank">{{ video.file_link }}</a>) |
+                      <a href="{% url 'f_serve_file' folder_code=folder_code filename=video.file_link %}" download>Download</a> |
+                      <button type="button" class="btn btn-success" data-bs-toggle="modal" data-bs-target="#filemodal{{video.file_id}}">Edit</button> |
+                      <form method="post" onsubmit="return confirmDelete()" style="display:inline;">
+                        {% csrf_token %}
+                        <input type="hidden" name="file_name" value="{{ video.file_link }}">
+                        <input type="hidden" name="file_id" value="{{ video.file_id }}">
+                        <button type="submit" class=" btn btn-danger" name="delete_file">Delete</button>
+                      </form>
+                    </li>
+                
+                    <!-- Modal -->
+                    <div class="modal fade" id="filemodal{{video.file_id}}" tabindex="-1" role="dialog">
+                      <div class="modal-dialog" role="document">
+                        <form method="post">
+                          {% csrf_token %}
+                          <div class="modal-content">
+                            <div class="modal-body">
+                              <label>File Name</label>
+                              <input type="hidden" name="file_id" value="{{ video.file_id }}">
+                              <input class="form-control" type="text" name="file_name" value="{{ video.file_name }}">
+                            </div>
+                            <div class="modal-footer">
+                              <button type="button" class="btn btn-secondary" data-dismiss="modal">Close</button>
+                              <button class="btn btn-success" name="change_fname">Change File Name</button>
                             </div>
                           </div>
+                        </form>
                       </div>
+                    </div>
                   {% endfor %}
+                
+                  {% for image in files.images %}
+                    <li class="list-group-item file-item">
+                      {{ image.file_name }} (<a href="{% url 'f_serve_file' folder_code=folder_code filename=image.file_link %}" target="_blank">{{ image.file_link }}</a>) |
+                      <a href="{% url 'f_serve_file' folder_code=folder_code filename=image.file_link %}" download>Download</a> |
+                      <button type="button" data-bs-toggle="modal" data-bs-target="#filemodal{{image.file_id}}">Edit</button> |
+                      <form method="post" onsubmit="return confirmDelete()" style="display:inline;">
+                        {% csrf_token %}
+                        <input type="hidden" name="file_name" value="{{ image.file_link }}">
+                        <input type="hidden" name="file_id" value="{{ image.file_id }}">
+                        <button type="submit" name="delete_file">Delete</button>
+                      </form>
+                    </li>
+                
+                    <!-- Modal -->
+                    <div class="modal fade" id="filemodal{{image.file_id}}" tabindex="-1" role="dialog">
+                      <div class="modal-dialog" role="document">
+                        <form method="post">
+                          {% csrf_token %}
+                          <div class="modal-content">
+                            <div class="modal-body">
+                              <label>File Name</label>
+                              <input type="hidden" name="file_id" value="{{ image.file_id }}">
+                              <input class="form-control" type="text" name="file_name" value="{{ image.file_name }}">
+                            </div>
+                            <div class="modal-footer">
+                              <button type="button" class="btn btn-secondary" data-dismiss="modal">Close</button>
+                              <button class="btn btn-success" name="change_fname">Change File Name</button>
+                            </div>
+                          </div>
+                        </form>
+                      </div>
+                    </div>
+
+
+                    
+                  {% endfor %}
+                </ul>
+                
+                <script>
+                  function confirmDelete() {
+                    return confirm("Are you sure you want to delete this file?");
+                  }
+                </script>
+                
               </div>
           </div>
     
